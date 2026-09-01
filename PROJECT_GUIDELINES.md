@@ -30,9 +30,21 @@ Anda berperan sebagai **Senior Software Engineer**, **Software Architect**, dan 
 | Runtime | .NET 8, C# 12 |
 | UI | WPF + MVVM |
 | Integrasi | REST API (HTTPS + JWT) |
-| Persistence | **Tidak memakai SQL / database lokal berbasis SQL** — data melalui API / layanan eksternal |
+| Data | **App → API → Database** — aplikasi tidak akses database langsung; semua data lewat API |
 | Logging | Serilog |
 | Testing | xUnit + FluentAssertions |
+
+### Alur data (wajib)
+```
+[WPF Desktop App]  ──HTTPS/JWT──►  [REST API]  ──►  [Database]
+       ↑                                │
+  View / ViewModel / Service      SQL & persistence
+  hanya kenal API client          hanya di sisi API/server
+```
+
+- Client (aplikasi ini) **hanya** memanggil endpoint API.
+- Database diakses **hanya** oleh API/server — bukan dari WPF, ViewModel, atau Infrastructure client.
+- Jangan connection string database, SQL, Dapper, EF, atau SQLite di aplikasi desktop.
 
 ---
 
@@ -194,10 +206,24 @@ Ini bagian **wajib** — aplikasi tidak boleh terasa lambat.
 
 ---
 
-## 10. API Guidelines (Pengganti Database SQL)
+## 10. API Guidelines (Jalan ke Database)
 
-Aplikasi **tidak menggunakan SQL** (tidak ada Dapper, EF Core SQL, SQLite, raw query, dll.).
-Semua data bisnis diambil/dikirim lewat **REST API** atau layanan eksternal non-SQL yang disepakati tim.
+Database tetap ada di backend, tetapi **satu-satunya jalan** dari aplikasi ke database adalah **REST API**.
+
+```
+Read/Write data bisnis:
+  ViewModel → Application Service → API Client (Infrastructure) → REST API → Database
+```
+
+### Batas tanggung jawab
+| Di aplikasi desktop (repo ini) | Di API / server (bukan di client) |
+|--------------------------------|-----------------------------------|
+| HttpClient, DTO, mapping, cache UI | SQL, query, transaction, index, schema |
+| Auth token, timeout, retry HTTP | Connection string, ORM, stored procedure |
+| Validasi sebelum kirim & setelah terima | Validasi & otorisasi akses data |
+
+Aplikasi **tidak** memakai Dapper, EF Core, SQLite, ADO.NET, atau raw SQL.
+Jangan bypass API (mis. koneksi langsung ke DB dari desktop).
 
 ### Aturan API client
 - Gunakan **`IHttpClientFactory`** — jangan `new HttpClient()` sembarangan.
@@ -208,11 +234,13 @@ Semua data bisnis diambil/dikirim lewat **REST API** atau layanan eksternal non-
 - Mapping DTO ↔ Domain / ViewModel di layer Application (mapper jelas, bukan di View).
 - Handle status HTTP dengan jelas (401 → re-auth, 404 → empty/not found, 5xx → retry/pesan ramah).
 - Jangan log body yang berisi secret / PII.
+- Satu resource bisnis = satu API client/service yang jelas namanya (mudah dilacak saat ubah).
 
 ### Kontrak & perubahan
 - Breaking API change harus dikoordinasikan; versioning bila memungkinkan.
 - Validasi response sebelum dipakai UI.
 - Idempotensi untuk operasi write yang bisa di-retry.
+- Perubahan struktur data di database **tidak** merembet ke client selama kontrak API stabil.
 
 ---
 
@@ -262,7 +290,7 @@ Gunakan level yang tepat: `Verbose`/`Debug` (dev), `Information` (alur normal), 
 | ImageSharp | Image processing |
 
 ### Dilarang / dihindari
-- **SQL stack apa pun** (Dapper, EF Core SQL provider, Microsoft.Data.Sqlite, raw ADO.NET SQL, dll.)
+- **Akses database langsung dari client** — termasuk Dapper, EF Core, Microsoft.Data.Sqlite, ADO.NET, connection string DB
 - Library UI/HTTP yang belum disepakati tanpa review
 - Package yang menambah dependency besar tanpa manfaat jelas
 
@@ -299,7 +327,7 @@ Sebelum approve / merge, pastikan:
 - [ ] **Memory** — dispose, unsubscribe, tidak hold View
 - [ ] **Security** — validasi input, HTTPS, no hardcoded secret
 - [ ] **XML docs** pada public API
-- [ ] **Layering** tidak dilanggar (tidak ada SQL, tidak ada business logic di View)
+- [ ] **Layering** tidak dilanggar (data hanya lewat API → DB; tidak ada SQL/DB langsung; tidak ada business logic di View)
 - [ ] **UI** punya loading / empty / error state
 - [ ] **Test** untuk logic penting
 
@@ -331,14 +359,14 @@ Aplikasi dianggap memenuhi acuan ini jika:
 
 | Dilarang | Alasan |
 |----------|--------|
-| SQL / database SQL lokal | Bukan bagian arsitektur proyek; data via API |
+| Koneksi / SQL langsung ke database dari app | Arsitektur wajib: **App → API → Database** |
 | Business logic di View / code-behind | Merusak maintainability & testability |
 | Blocking UI thread | Membuat aplikasi lemot / freeze |
-| Hardcoded secret | Risiko keamanan |
+| Hardcoded secret / connection string DB | Risiko keamanan |
 | Full reset ObservableCollection tanpa perlu | UI jank & mahal |
 | Library baru tanpa review | Dependency & ukuran tak terkendali |
 | `async void` di non-event | Exception hilang; crash sulit dilacak |
 
 ---
 
-*Dokumen ini adalah **satu-satunya acuan utama**. Bila ada panduan lama yang bertentangan (termasuk yang menyebut SQL/Dapper/SQLite/EF), ikuti dokumen ini.*
+*Dokumen ini adalah **satu-satunya acuan utama**. Bila ada panduan lama yang bertentangan (mis. SQL/Dapper/SQLite di client), ikuti dokumen ini: **database hanya diakses melalui API**.*
