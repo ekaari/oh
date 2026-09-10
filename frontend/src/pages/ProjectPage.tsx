@@ -68,11 +68,29 @@ export function ProjectPage() {
   }
 
   useEffect(() => {
-    load().catch((e) => setError(String(e)))
+    let cancelled = false
+    async function tick() {
+      try {
+        await load()
+      } catch (e) {
+        if (!cancelled) setError(String(e))
+      }
+    }
+    tick()
     const t = setInterval(() => {
-      load().catch(() => undefined)
-    }, 2500)
-    return () => clearInterval(t)
+      // Only poll while a run may still be in progress
+      const live = Object.values(runsByMission).some((runs) =>
+        runs.some((r) => !['COMPLETED', 'ERROR'].includes(r.lifecycle)),
+      )
+      const missionLive = missions.some((m) => !['COMPLETED', 'ERROR', 'CREATED'].includes(m.status))
+      if (live || missionLive || Object.keys(runsByMission).length === 0) {
+        tick()
+      }
+    }, 3000)
+    return () => {
+      cancelled = true
+      clearInterval(t)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
