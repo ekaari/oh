@@ -16,8 +16,10 @@ export function RunPage() {
   const [run, setRun] = useState<TestRun | null>(null)
   const [question, setQuestion] = useState('Bug paling serius apa?')
   const [answer, setAnswer] = useState<string | null>(null)
+  const [askError, setAskError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [asking, setAsking] = useState(false)
 
   async function load() {
     const data = await api.run(runId)
@@ -176,21 +178,36 @@ export function RunPage() {
           className="flex flex-col sm:flex-row gap-2"
           onSubmit={async (e) => {
             e.preventDefault()
-            setBusy(true)
+            if (!question.trim() || asking) return
+            setAsking(true)
+            setAskError(null)
             try {
-              const res = await api.query({ question, run_id: run.id })
+              const res = await api.query({ question: question.trim(), run_id: run.id })
               setAnswer(res.answer)
             } catch (err) {
-              setError(String(err))
+              setAskError(String(err))
+              setAnswer(null)
             } finally {
-              setBusy(false)
+              setAsking(false)
             }
           }}
         >
-          <input className="field flex-1" value={question} onChange={(e) => setQuestion(e.target.value)} />
-          <button className="btn-primary" disabled={busy}>Ask</button>
+          <input
+            className="field flex-1"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            disabled={asking}
+          />
+          <button className="btn-primary" disabled={asking || !question.trim()} type="submit">
+            {asking ? 'Asking…' : 'Ask'}
+          </button>
         </form>
-        {answer && <pre className="mt-3 whitespace-pre-wrap text-sm text-[var(--color-mute)]">{answer}</pre>}
+        {askError && <p className="mt-3 text-sm text-rose-300">{askError}</p>}
+        {answer && (
+          <pre className="mt-3 whitespace-pre-wrap text-sm text-[var(--color-foam)] border border-[var(--color-line)] bg-[#0b1220] p-3 rounded-sm">
+            {answer}
+          </pre>
+        )}
       </section>
 
       <p className="text-sm text-[var(--color-mute)]">

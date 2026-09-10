@@ -237,13 +237,13 @@ export function ProjectPage() {
                   <Link
                     key={r.id}
                     to={`/runs/${r.id}`}
-                    className="flex items-center justify-between gap-3 text-sm no-underline text-[var(--color-foam)] border border-transparent hover:border-[var(--color-line)] px-2 py-2"
+                    className="flex items-center justify-between gap-3 text-sm no-underline text-[var(--color-foam)] border border-[var(--color-line)] hover:border-teal-400/40 hover:bg-teal-400/5 px-3 py-2.5 rounded-sm"
                   >
-                    <span>
+                    <span className="pointer-events-none">
                       {r.id} · {r.lifecycle}
                       {r.is_regression ? ' · regression' : ''}
                     </span>
-                    <span className="text-[var(--color-mute)]">
+                    <span className="text-[var(--color-mute)] pointer-events-none">
                       P{r.summary?.passed ?? 0} / F{r.summary?.failed ?? 0} / B{r.bugs?.length ?? 0}
                     </span>
                   </Link>
